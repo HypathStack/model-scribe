@@ -1,6 +1,7 @@
 <?php
 
 namespace HypathBel\ModelScribe;
+// TO DO cambiar a HypathStack\ModelScribe
 
 use HypathBel\ModelScribe\DTOs\LogEntry;
 use HypathBel\ModelScribe\Enums\ScribeEvent;

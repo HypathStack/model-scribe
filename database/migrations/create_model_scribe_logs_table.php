@@ -1,5 +1,6 @@
 <?php
 
+use HypathBel\ModelScribe\Enums\ScribeEvent;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -15,7 +16,7 @@ return new class extends Migration
 
             // 🏷️ ORGANIZACIÓN
             $table->string('log_name')->default('default');
-            $table->string('event');
+            $table->enum('event', array_map(fn($event) => $event->value, ScribeEvent::cases()));
             $table->text('description')->nullable();
 
             // 👤 CAUSER (who acted — typically the authenticated user)
@@ -28,13 +29,16 @@ return new class extends Migration
             $table->json('properties')->nullable();
 
             // 🌐 CONTEXTO WEB
-            $table->text('url')->nullable();
-            $table->ipAddress('ip_address')->nullable();
-            $table->string('user_agent')->nullable();
+            // TO DO optional
+                $table->text('url')->nullable();
+                $table->ipAddress('ip_address')->nullable();
+                $table->string('user_agent')->nullable();
+            
 
             // 🗂️ AGRUPACIÓN Y ETIQUETAS
-            $table->uuid('batch_uuid')->nullable();
-            $table->json('tags')->nullable();
+            // TO DO optional
+                $table->uuid('batch_uuid')->nullable();
+                $table->json('tags')->nullable();
 
             $table->timestamps();
 
