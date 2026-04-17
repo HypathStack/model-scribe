@@ -88,6 +88,69 @@ trait HasActivityLog
         };
     }
 
+    /**
+     * ═══════════════════════════════════════════════════════════
+     * NUEVOS MÉTODOS PARA PERSONALIZACIÓN POR GUARD
+     * ═══════════════════════════════════════════════════════════
+     * 
+     * Esto será útil cuando necesitemos separar qué se loguea según el punto de entrada
+     * (ej: backoffice loguea el fichero de factura pero eina no cuando un internal_payment es creado).
+     */
+
+    /**
+     * Atributos a loguear según el guard activo (globales para todos los eventos).
+     * Sobrescribe en el modelo para lógica por guard.
+     *
+     * Ejemplo:
+     *   return [
+     *       'admin' => ['id', 'name', 'email', 'secret_field'],
+     *       'web'   => ['id', 'name'],
+     *   ];
+     */
+    protected function getAttributesPerGuard(): array
+    {
+        return isset($this->loggableAttributesPerGuard) ? $this->loggableAttributesPerGuard : [];
+    }
+
+    /**
+     * Method getAttributesPerEvent
+     * Si quieres configurar atributos específicos por evento, sobreescribe este método en tu modelo.
+     * Servirá para devolver diferentes atributos según el evento (created, updated, deleted).
+     *
+     * @param string $event
+     *
+     * @return array
+     */
+    protected function getAttributesPerEvent(string $event): array 
+    {
+        return match($event) {
+            'created' => $this->loggableWhenCreatedAttributes ?? $this->loggableAttributes(),
+            'updated' => $this->loggableWhenUpdatedAttributes ?? $this->loggableAttributes(),
+            'deleted' => $this->loggableWhenDeletedAttributes ?? $this->loggableAttributes(),
+            default   => $this->loggableAttributes(),
+        };
+    }
+
+    /**
+     * Atributos a loguear por guard y por evento específico.
+     * Tiene prioridad sobre loggableAttributesPerGuard() y loggableAttributes().
+     *
+     * Ejemplo:
+     *   return [
+     *       'created' => [
+     *           'admin' => ['id', 'name', 'email'],
+     *           'web'   => ['id', 'name'],
+     *       ],
+     *       'updated' => [
+     *           'admin' => ['password', 'role_id'],
+     *       ],
+     *   ];
+     */
+    protected function getAttributesEventsMapPerGuard(): array
+    {
+        return isset($this->eventsAttributesMapPerGuard) ? $this->eventsAttributesMapPerGuard : [];
+    }
+
     // ─────────────────────────────────────────
     // BOOT (registro automático de eventos)
     // ─────────────────────────────────────────
@@ -257,7 +320,8 @@ trait HasActivityLog
     private function getLoggableChanges(?string $event = null): array
     {
         $onlySaveDirty = $this->onlySaveDirty ?? config('activitylog.save_only_dirty', true);
-        $attrs   = $event != null ? $this->eventsAttributesMap($event) : $this->loggableAttributes();
+        $attrs = $this->resolveLoggableAttributes($event, $this->resolveActiveGuard());
+        // $attrs   = $event != null ? $this->eventsAttributesMap($event) : $this->loggableAttributes();
 
         if ($onlySaveDirty) {
             $dirty = empty($attrs) ? array_keys($this->getDirty()) : $attrs;
@@ -305,6 +369,38 @@ trait HasActivityLog
         }
 
         return false;
+    }
+
+    /**
+     * Method resolveLoggableAttributes
+     *
+     * @param ?string $event [explicite description]
+     * @param ?string $guard [explicite description]
+     *
+     * @return array
+     */
+    private function resolveLoggableAttributes(?string $event = null, ?string $guard = null): array
+    {
+        // Prioridad: attributesEventsMapPerGuard > loggableAttributesPerGuard > eventsAttributesMap > loggableAttributes
+        if ($event) {
+            $mapPerEventAndGuard = $this->getAttributesEventsMapPerGuard();
+            if ($mapPerEventAndGuard && isset($mapPerEventAndGuard[$event]) && $guard && isset($mapPerEventAndGuard[$event][$guard])) {
+                return $mapPerEventAndGuard[$event][$guard];
+            }
+        }
+
+        if ($guard) {
+            $attrsPerGuard = $this->getAttributesPerGuard();
+            if ($attrsPerGuard && isset($attrsPerGuard[$guard])) {
+                return $attrsPerGuard[$guard];
+            }
+        }
+
+        if ($event) {
+            return $this->getAttributesPerEvent($event);
+        }
+
+        return $this->loggableAttributes();
     }
 
     /**
