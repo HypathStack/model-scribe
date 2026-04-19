@@ -16,7 +16,6 @@ use Throwable;
  * Trait usado para monitorizar la actividad del modelo causada por los usuarios autenticados.
  * Agrega logging automático de eventos (created, updated, deleted) a cualquier modelo que lo use, con configuración flexible por modelo.
  */
-
 trait HasActivityLog
 {
     // ─────────────────────────────────────────
@@ -35,7 +34,7 @@ trait HasActivityLog
 
     /**
      * Atributos que se trackean en updated.
-     * 
+     *
      * ⚠️ Si está vacío, trackea TODOS.
      */
     protected function loggableAttributes(): array
@@ -69,19 +68,15 @@ trait HasActivityLog
     {
         return $this->activityModels ?? config('activitylog.log_models', []);
     }
-    
+
     /**
      * Method eventsAttributesMap
      * Si quieres configurar atributos específicos por evento, sobreescribe este método en tu modelo.
      * Servirá para devolver diferentes atributos según el evento (created, updated, deleted).
-     *
-     * @param string $event
-     *
-     * @return array
      */
-    protected function eventsAttributesMap(string $event): array 
+    protected function eventsAttributesMap(string $event): array
     {
-        return match($event) {
+        return match ($event) {
             'created' => $this->loggableWhenCreatedAttributes ?? $this->loggableAttributes(),
             'updated' => $this->loggableWhenUpdatedAttributes ?? $this->loggableAttributes(),
             'deleted' => $this->loggableWhenDeletedAttributes ?? $this->loggableAttributes()
@@ -92,7 +87,7 @@ trait HasActivityLog
      * ═══════════════════════════════════════════════════════════
      * NUEVOS MÉTODOS PARA PERSONALIZACIÓN POR GUARD
      * ═══════════════════════════════════════════════════════════
-     * 
+     *
      * Esto será útil cuando necesitemos separar qué se loguea según el punto de entrada
      * (ej: backoffice loguea el fichero de factura pero eina no cuando un internal_payment es creado).
      */
@@ -116,18 +111,14 @@ trait HasActivityLog
      * Method getAttributesPerEvent
      * Si quieres configurar atributos específicos por evento, sobreescribe este método en tu modelo.
      * Servirá para devolver diferentes atributos según el evento (created, updated, deleted).
-     *
-     * @param string $event
-     *
-     * @return array
      */
-    protected function getAttributesPerEvent(string $event): array 
+    protected function getAttributesPerEvent(string $event): array
     {
-        return match($event) {
+        return match ($event) {
             'created' => $this->loggableWhenCreatedAttributes ?? $this->loggableAttributes(),
             'updated' => $this->loggableWhenUpdatedAttributes ?? $this->loggableAttributes(),
             'deleted' => $this->loggableWhenDeletedAttributes ?? $this->loggableAttributes(),
-            default   => $this->loggableAttributes(),
+            default => $this->loggableAttributes(),
         };
     }
 
@@ -160,9 +151,9 @@ trait HasActivityLog
         $events = static::loggableEvents();
 
         if (in_array('created', $events)) {
-            static::created(fn(Model $model) => $model->logActivity('created'));
+            static::created(fn (Model $model) => $model->logActivity('created'));
         }
-        
+
         if (in_array('updated', $events)) {
             static::updated(function (Model $model) {
                 if ($model->hasLoggableChanges('updated')) {
@@ -172,7 +163,7 @@ trait HasActivityLog
         }
 
         if (in_array('deleted', $events)) {
-            static::deleted(fn(Model $model) => $model->logActivity('deleted'));
+            static::deleted(fn (Model $model) => $model->logActivity('deleted'));
         }
     }
 
@@ -183,18 +174,16 @@ trait HasActivityLog
     /**
      * Loguea un evento. Puedes llamarlo manualmente también:
      *   $user->logActivity('password_changed', ['extra' => 'dato']);
-     * 
-     * @param string $event -> evento que loguea
-     * @param array $extraProperties -> propiedades customizadas que se quieran añadir
-     * 
-     * @return void 
+     *
+     * @param  string  $event  -> evento que loguea
+     * @param  array  $extraProperties  -> propiedades customizadas que se quieran añadir
      */
     public function logActivity(string $event, array $extraProperties = []): void
     {
-        $guard      = $this->resolveActiveGuard();
+        $guard = $this->resolveActiveGuard();
         $modelClass = $this->resolveActivityModel($guard);
-        
-        if (!$modelClass) {
+
+        if (! $modelClass) {
             return; // No hay tabla configurada para este guard, se ignora -> NO LOGUEA
         }
 
@@ -208,44 +197,42 @@ trait HasActivityLog
         );
 
         try {
-            
+
             $modelClass::create([
-                'log_name'     => $this->logNameAttribute(),
-                'description'  => $this->buildDescription($event, $guard),
+                'log_name' => $this->logNameAttribute(),
+                'description' => $this->buildDescription($event, $guard),
                 'subject_type' => static::class,
-                'subject_id'   => $this->getKey(),
-                'causer_type'  => $causer ? get_class($causer) : 'system',
-                'causer_id'    => $causer? $causer->getKey() : null,
-                'event'        => $event,
-                'properties'   => $properties,
-                'created_at'   => now(),
+                'subject_id' => $this->getKey(),
+                'causer_type' => $causer ? get_class($causer) : 'system',
+                'causer_id' => $causer ? $causer->getKey() : null,
+                'event' => $event,
+                'properties' => $properties,
+                'created_at' => now(),
             ]);
 
         } catch (Throwable $th) {
-            Log::error("Error al loguear actividad: " . $th->getMessage(), [
+            Log::error('Error al loguear actividad: '.$th->getMessage(), [
                 'model' => static::class,
                 'event' => $event,
                 'guard' => $guard,
             ]);
-            if (env("APP_ENV") == "local"){ throw $th; }
+            if (env('APP_ENV') == 'local') {
+                throw $th;
+            }
         }
-        
+
     }
 
     // ─────────────────────────────────────────
     // HELPERS INTERNOS (metodos auxiliares para construir el log, resolver guard, usuario, etc)
     // ─────────────────────────────────────────
-    
+
     /**
      * Method buildProperties
      * Construye el array de propiedades a guardar en el log según el evento.
      * - Created: snapshot del modelo después de la creación.
      * - Updated: Si only_dirty -> solo los atributos que han cambiado con su valor old y new. Si no, todos los definidos o todos.
      * - Deleted: snapshot del modelo antes de la eliminación.
-     *
-     * @param string $event
-     *
-     * @return array
      */
     private function buildProperties(string $event): array
     {
@@ -265,25 +252,22 @@ trait HasActivityLog
 
     private function buildDescription(string $event, ?string $guard): string
     {
-        $model  = class_basename($this);
-        $actor  = $this->resolveUser($guard)?->name ?? 'Sistema';
-        $id     = $this->getKey();
+        $model = class_basename($this);
+        $actor = $this->resolveUser($guard)?->name ?? 'Sistema';
+        $id = $this->getKey();
 
         return match ($event) {
             'created' => "{$actor} creó {$model} #{$id}",
             'updated' => "{$actor} actualizó {$model} #{$id}",
             'deleted' => "{$actor} eliminó {$model} #{$id}",
-            default   => "{$actor} realizó '{$event}' en {$model} #{$id}",
+            default => "{$actor} realizó '{$event}' en {$model} #{$id}",
         };
     }
-    
+
     /**
      * Method getLoggableSnapshot
      * Devuelve una foto del estado actual del modelo en db
      * Si hay atributos específicos en loggableAttributes, devuelve solo esos, sino devuelve todo el modelo.
-     *
-     * @param ?string $event
-     * @return array
      */
     private function getLoggableSnapshot(?string $event = null): array
     {
@@ -293,13 +277,11 @@ trait HasActivityLog
             ? $this->getAttributes()
             : collect($this->getAttributes())->only($attrs)->all();
     }
-    
+
     /**
      * Method getLoggableOriginal
      * Devuelve una foto del estado original del modelo antes de la actualización (solo para updated)
      * Si hay atributos específicos en loggableAttributes, devuelve solo esos, sino devuelve todo el modelo.
-     *
-     * @return array
      */
     private function getLoggableOriginal(): array
     {
@@ -309,13 +291,10 @@ trait HasActivityLog
             ? $this->getOriginal()
             : collect($this->getOriginal())->only($attrs)->all();
     }
-    
+
     /**
      * Method getLoggableChanges
      * Devuelve solo los atributos que han cambiado con su valor old y new.
-     *
-     * @param ?string $event
-     * @return array
      */
     private function getLoggableChanges(?string $event = null): array
     {
@@ -337,7 +316,7 @@ trait HasActivityLog
                     'old' => $this->getOriginal($attr),
                     'new' => $this->getAttribute($attr),
                 ];
-            } 
+            }
             // else {
             //     $changes[$attr] = [
             //         'old' => $this->getOriginal($attr),
@@ -348,13 +327,10 @@ trait HasActivityLog
 
         return $changes;
     }
-    
+
     /**
      * Method hasLoggableChanges
      * Determina si el modelo tiene cambios que loguear según la configuración de atributos logueables.
-     *
-     * @param ?string $event
-     * @return bool
      */
     private function hasLoggableChanges(?string $event = null): bool
     {
@@ -365,7 +341,9 @@ trait HasActivityLog
         }
 
         foreach ($attrs as $attr) {
-            if ($this->isDirty($attr)) return true;
+            if ($this->isDirty($attr)) {
+                return true;
+            }
         }
 
         return false;
@@ -374,10 +352,8 @@ trait HasActivityLog
     /**
      * Method resolveLoggableAttributes
      *
-     * @param ?string $event [explicite description]
-     * @param ?string $guard [explicite description]
-     *
-     * @return array
+     * @param  ?string  $event  [explicite description]
+     * @param  ?string  $guard  [explicite description]
      */
     private function resolveLoggableAttributes(?string $event = null, ?string $guard = null): array
     {
@@ -406,19 +382,19 @@ trait HasActivityLog
     /**
      * Resuelve qué clase de ActivityLog usar según el guard activo.
      * Fallback: primera del mapa, o null si el mapa está vacío.
-     * 
-     * @param ?string $guard
-     * @return ?string
      */
     private function resolveActivityModel(?string $guard): ?string
     {
-        if (!$guard) return null;
+        if (! $guard) {
+            return null;
+        }
 
         $map = $this->activityModelsMap();
         // if (!$guard) return $map['default'] ?? null; //-> para casos de system sin guard (ej: crons) devolvemos el default si existe, sino null
 
-
-        if (empty($map)) return null;
+        if (empty($map)) {
+            return null;
+        }
 
         // Si hay guard activo y está en el mapa, úsalo
         if ($guard && array_key_exists($guard, $map)) {
@@ -428,29 +404,26 @@ trait HasActivityLog
         // Fallback: primera clase del mapa (ej: guard de consola/schedule)
         return array_values($map)[0];
     }
-    
+
     /**
      * Method resolveActiveGuard
      * Resuelve cuál es el guard activo actualmente. Si no hay ninguno, devuelve null.
-     *
-     * @return ?string
      */
     private function resolveActiveGuard(): ?string
     {
         return Auth::getDefaultDriver();
     }
-    
+
     /**
      * Method resolveUser
      * Resuelve el usuario autenticado del guard dado. Si no hay guard o usuario, devuelve null.
-     *
-     * @param ?string $guard
-     *
-     * @return ?Model
      */
-    private function resolveUser(?string $guard) :?Model
+    private function resolveUser(?string $guard): ?Model
     {
-        if (!$guard) return null;
+        if (! $guard) {
+            return null;
+        }
+
         return Auth::guard($guard)->user();
     }
 
@@ -477,10 +450,9 @@ trait HasActivityLog
     //     return $all->sortByDesc('created_at')->values();
     // }
 
-
     public function activityLogs(): MorphMany
     {
-        $map   = $this->activityModelsMap();
+        $map = $this->activityModelsMap();
         $guard = $this->resolveActiveGuard();
         $class = $map[$guard] ?? array_values($map)[0] ?? null;
 
