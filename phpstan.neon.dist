@@ -7,4 +7,25 @@ parameters:
         - src
         - config
         - database
+
+    # The package ships its own publishable config files which may call env().
+    # Register the config directory so larastan does not flag it as "outside config".
+    configDirectories:
+        - %currentWorkingDirectory%/config
+
+    ignoreErrors:
+        # Public-API trait: consumers put it on their models, so it is never
+        # `use`d inside the analysed sources. It IS analysed at runtime by the
+        # observer's class_uses_recursive() guard.
+        - identifier: trait.unused
+          path: src/Traits/HasAuditLog.php
+
+        # The HasAuditLog trait adds these methods to models, but PHPStan
+        # cannot see them on the base Eloquent Model class. The observer only
+        # calls them after the runtime class_uses_recursive(HasAuditLog::class)
+        # guard performed in handle().
+        - identifier: method.notFound
+          path: src/Observers/ModelScribeObserver.php
+          message: '#Call to an undefined method Illuminate\\Database\\Eloquent\\Model::getAudit#'
+
     tmpDir: build/phpstan

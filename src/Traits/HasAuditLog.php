@@ -38,70 +38,44 @@ use HypathBel\ModelScribe\Observers\ModelScribeObserver;
  *       // Extra tags stored alongside each entry
  *       protected array $auditTags = ['billing', 'finance'];
  *   }
+ *
+ * @property array<string> $auditEvents Eloquent events to capture.
+ * @property array|string $auditAttributes Attributes to capture, keyed by event.
+ * @property string|null $auditDriver Driver name override (null = default).
+ * @property string $auditLogName Log name / table routing key.
+ * @property array<string> $auditTags Extra tags stored with each entry.
  */
 trait HasAuditLog
 {
-    /**
-     * Eloquent events to capture.
-     *
-     * @var array<string>
-     */
-    protected array $auditEvents = ['created', 'updated', 'deleted'];
-
-    /**
-     * Which attributes to capture, keyed by event name.
-     * Use '*' or omit the key to capture all attributes for that event.
-     *
-     * @var array<string, string[]|'*'>|'*'
-     */
-    protected array $auditAttributes = [];
-
-    /**
-     * Override the package default driver for this model.
-     */
-    protected ?string $auditDriver = null;
-
-    /**
-     * Log name / table routing key.
-     * Maps to the `log_name` column and (for DB driver) the table name when
-     * different from the global default.
-     */
-    protected string $auditLogName = 'default';
-
-    /**
-     * Extra tags to store with every log entry from this model.
-     *
-     * @var array<string>
-     */
-    protected array $auditTags = [];
-
     // ── Boot ─────────────────────────────────────────────────────────────────
 
     public static function bootHasAuditLog(): void
     {
-        static::observe(ModelScribeObserver::class);
+        static::whenBooted(function (): void {
+            static::observe(ModelScribeObserver::class);
+        });
     }
 
     // ── Accessors for the observer ───────────────────────────────────────────
 
     public function getAuditEvents(): array
     {
-        return $this->auditEvents;
+        return $this->auditEvents ?? ['created', 'updated', 'deleted'];
     }
 
     public function getAuditDriver(): ?string
     {
-        return $this->auditDriver;
+        return $this->auditDriver ?? null;
     }
 
     public function getAuditLogName(): string
     {
-        return $this->auditLogName;
+        return $this->auditLogName ?? 'default';
     }
 
     public function getAuditTags(): array
     {
-        return $this->auditTags;
+        return $this->auditTags ?? [];
     }
 
     /**
@@ -112,16 +86,18 @@ trait HasAuditLog
      */
     public function getAuditableAttributes(string $event): ?array
     {
-        if (empty($this->auditAttributes)) {
+        $auditAttributes = $this->auditAttributes ?? [];
+
+        if (empty($auditAttributes)) {
             return null; // log everything
         }
 
         // If it's a flat list (not keyed by event name), apply to all events
-        if (isset($this->auditAttributes[0])) {
-            return $this->auditAttributes;
+        if (isset($auditAttributes[0])) {
+            return $auditAttributes === ['*'] ? null : $auditAttributes;
         }
 
-        $perEvent = $this->auditAttributes[$event] ?? '*';
+        $perEvent = $auditAttributes[$event] ?? '*';
 
         return $perEvent === '*' ? null : (array) $perEvent;
     }

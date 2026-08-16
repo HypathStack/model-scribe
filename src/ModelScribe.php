@@ -28,7 +28,7 @@ class ModelScribe
         ?string $driver = null,
     ): void {
         if (is_string($event)) {
-            $event = ScribeEvent::from($event);
+            $event = ScribeEvent::tryFrom($event) ?? ScribeEvent::Custom;
         }
 
         $entry = new LogEntry(

@@ -3,19 +3,12 @@
 namespace HypathBel\ModelScribe\Tests;
 
 use HypathBel\ModelScribe\ModelScribeServiceProvider;
-use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Factory::guessFactoryNamesUsing(
-            fn (string $modelName) => 'HypathBel\\ModelScribe\\Database\\Factories\\'.class_basename($modelName).'Factory'
-        );
-    }
+    use RefreshDatabase;
 
     protected function getPackageProviders($app): array
     {
@@ -28,8 +21,7 @@ class TestCase extends Orchestra
     {
         config()->set('database.default', 'testing');
 
-        // Run the package migration so tests have the table.
-        $migration = include __DIR__.'/../database/migrations/create_model_scribe_logs_table.php.stub';
-        $migration->up();
+        // Register the package migration so RefreshDatabase can migrate it.
+        \Orchestra\Testbench\load_migration_paths($app, __DIR__.'/../database/migrations');
     }
 }

@@ -5,7 +5,6 @@ use HypathBel\ModelScribe\ModelScribe;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
-    // Ensure the logs table has some data
     DB::table('model_scribe_logs')->truncate();
 });
 
@@ -31,17 +30,36 @@ it('prunes records older than the configured days', function () {
         ]);
     }
 
-    // Temporarily override retention to 'days' with 60-day window
     config([
         'model-scribe.drivers.database.retention.type' => 'days',
         'model-scribe.drivers.database.retention.days' => 60,
     ]);
 
-    $scribe = app(ModelScribe::class);
-    $deleted = $scribe->prune('database');
+    $deleted = app(ModelScribe::class)->prune('database');
 
     expect($deleted)->toBe(5)
         ->and(ScribeLog::count())->toBe(2);
+});
+
+it('keeps only the latest records for the rotating retention', function () {
+    for ($i = 0; $i < 520; $i++) {
+        DB::table('model_scribe_logs')->insert([
+            'log_name' => 'default',
+            'event' => 'updated',
+            'created_at' => now()->subMinutes(520 - $i),
+            'updated_at' => now()->subMinutes(520 - $i),
+        ]);
+    }
+
+    config([
+        'model-scribe.drivers.database.retention.type' => 'rotating',
+        'model-scribe.drivers.database.retention.keep' => 500,
+    ]);
+
+    $deleted = app(ModelScribe::class)->prune('database');
+
+    expect($deleted)->toBe(20)
+        ->and(ScribeLog::count())->toBe(500);
 });
 
 it('does not prune anything when retention is permanent', function () {

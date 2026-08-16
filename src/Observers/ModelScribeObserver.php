@@ -7,8 +7,8 @@ use HypathBel\ModelScribe\DTOs\LogEntry;
 use HypathBel\ModelScribe\Enums\ScribeEvent;
 use HypathBel\ModelScribe\Traits\HasAuditLog;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Request;
 
 class ModelScribeObserver
 {
@@ -45,7 +45,6 @@ class ModelScribeObserver
             return;
         }
 
-        /** @var HasAuditLog&Model $model */
         $auditEvents = $model->getAuditEvents();
 
         if (! in_array($event->value, $auditEvents, true)) {
@@ -55,6 +54,8 @@ class ModelScribeObserver
         $properties = $this->buildProperties($model, $event);
         $causer = $this->resolveCauser();
 
+        [$url, $ipAddress, $userAgent] = $this->requestContext();
+
         $entry = new LogEntry(
             event: $event,
             logName: $model->getAuditLogName(),
@@ -63,20 +64,34 @@ class ModelScribeObserver
             causer: $causer,
             properties: $properties,
             tags: $model->getAuditTags(),
-            url: config('model-scribe.capture_request_context', true)
-                             ? Request::fullUrl()
-                             : null,
-            ipAddress: config('model-scribe.capture_request_context', true)
-                             ? Request::ip()
-                             : null,
-            userAgent: config('model-scribe.capture_request_context', true)
-                             ? Request::userAgent()
-                             : null,
+            url: $url,
+            ipAddress: $ipAddress,
+            userAgent: $userAgent,
         );
 
         $logName = $this->resolveLogName($model);
         $driverName = $model->getAuditDriver();
         $this->manager->driver($driverName)->log($entry->withLogName($logName));
+    }
+
+    /**
+     * Resolve the current HTTP request context when running inside a request.
+     *
+     * @return array{0: string|null, 1: string|null, 2: string|null}
+     */
+    protected function requestContext(): array
+    {
+        if (! config('model-scribe.capture_request_context', true)) {
+            return [null, null, null];
+        }
+
+        $request = app()->bound('request') ? app('request') : null;
+
+        if (! $request instanceof Request) {
+            return [null, null, null];
+        }
+
+        return [$request->fullUrl(), $request->ip(), $request->userAgent()];
     }
 
     protected function buildProperties(Model $model, ScribeEvent $event): array
@@ -128,7 +143,6 @@ class ModelScribeObserver
 
     protected function resolveLogName(Model $model): string
     {
-        /** @var HasAuditLog&Model $model */
         $logName = $model->getAuditLogName();
 
         if ($logName !== 'default') {
