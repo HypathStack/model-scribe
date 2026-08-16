@@ -19,7 +19,7 @@ class MakeScribeTableCommand extends Command
         $name = Str::snake($this->argument('name'));
         $table = $this->option('table') ?: "{$name}_scribe_logs";
 
-        $stubPath = __DIR__.'/../../database/migrations/create_model_scribe_logs_table.php.stub';
+        $stubPath = __DIR__.'/../../database/migrations/create_model_scribe_logs_table.php';
 
         if (! $files->exists($stubPath)) {
             $this->components->error("Migration stub not found at [{$stubPath}].");

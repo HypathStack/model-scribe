@@ -57,7 +57,7 @@ return [
             'retention' => [
                 // 'permanent' — never delete automatically
                 // 'days'      — delete records older than `days`
-                // 'rotating'  — keep only the latest `keep` records per subject
+                // 'rotating'  — keep only the latest `keep` records per table
                 'type' => env('MODEL_SCRIBE_RETENTION', 'permanent'),
                 'days' => (int) env('MODEL_SCRIBE_RETENTION_DAYS', 90),
                 'keep' => (int) env('MODEL_SCRIBE_RETENTION_KEEP', 500),

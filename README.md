@@ -16,7 +16,7 @@ Unlike other packages, ModelScribe excels at **multi-table routing**, allowing y
 - **Multi-Target Drivers**: Support for `database`, `file`, and `stack` (log to multiple places at once).
 - **Multi-Table Routing**: Map different models to different log tables or database connections.
 - **Deep Diffing**: Records `old` vs `new` attributes automatically.
-- **Customizable Retention**: Choose between `permanent`, `days`-based, or `rotating` (keep N records).
+- **Customizable Retention**: Choose between `permanent`, `days`-based, or `rotating` (keep N records per table).
 - **Rich Context**: Automatically captures URL, IP Address, User Agent, and the authenticated "causer".
 - **Batching**: Group related operations with a unique `batch_uuid`.
 - **Developer Friendly**: Clean API, Facades, and a prune command.

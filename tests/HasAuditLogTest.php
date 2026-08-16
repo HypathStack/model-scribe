@@ -5,6 +5,7 @@ use HypathBel\ModelScribe\Models\ScribeLog;
 use HypathBel\ModelScribe\Traits\HasAuditLog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
 // ── Inline stub models ──────────────────────────────────────────────────────
@@ -36,7 +37,22 @@ class Invoice extends Model
         'updated' => ['amount', 'status'],
     ];
 
-    protected string $auditLogName = 'invoices';
+    protected string $auditLogName = 'invoices_log';
+
+    protected array $auditTags = ['billing'];
+}
+
+class TotalOnly extends Model
+{
+    use HasAuditLog;
+
+    protected $table = 'orders';
+
+    protected $guarded = [];
+
+    public $timestamps = true;
+
+    protected array $auditAttributes = ['total'];
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -81,7 +97,7 @@ it('logs a created event when a model is saved', function () {
     expect($log)->not->toBeNull()
         ->and($log->event)->toBe(ScribeEvent::Created->value)
         ->and($log->subject_type)->toBe(Order::class)
-        ->and($log->subject_id)->toBe((string) $order->id)
+        ->and((int) $log->subject_id)->toBe((int) $order->id)
         ->and($log->properties['attributes']['status'])->toBe('pending');
 });
 
@@ -138,22 +154,55 @@ it('respects per-event $auditAttributes filtering', function () {
         ->and(array_key_exists('reference', $log->properties['attributes']))->toBeFalse();
 });
 
+it('applies a flat attribute list to every event', function () {
+    $order = TotalOnly::create(['status' => 'new', 'total' => 42]);
+
+    $log = ScribeLog::first();
+
+    expect($log)->not->toBeNull()
+        ->and(array_key_exists('total', $log->properties['attributes']))->toBeTrue()
+        ->and(array_key_exists('status', $log->properties['attributes']))->toBeFalse();
+});
+
 it('routes to the correct log_name', function () {
     Invoice::create(['amount' => 100, 'status' => 'draft']);
 
     $log = ScribeLog::first();
 
-    expect($log->log_name)->toBe('invoices');
+    expect($log->log_name)->toBe('invoices_log');
 });
 
-it('captures request context by default', function () {
+it('stores audit tags', function () {
+    Invoice::create(['amount' => 100, 'status' => 'draft']);
+
+    $log = ScribeLog::first();
+
+    expect($log->tags)->toBe(['billing']);
+});
+
+it('captures request context when a request is bound', function () {
+    config(['model-scribe.capture_request_context' => true]);
+    app()->instance('request', Request::create('/invoices/1', 'GET'));
+
     Order::create(['status' => 'new', 'total' => 10]);
 
     $log = ScribeLog::first();
 
-    // In test mode url/ip will be set (even if to placeholder values)
-    expect($log)->not->toBeNull();
-    // url and ip_address columns exist (may be null in CLI)
-    expect(array_key_exists('url', $log->getAttributes()))->toBeTrue()
-        ->and(array_key_exists('ip_address', $log->getAttributes()))->toBeTrue();
+    expect($log)->not->toBeNull()
+        ->and($log->url)->toContain('/invoices/1')
+        ->and($log->ip_address)->toBe('127.0.0.1');
+});
+
+it('skips request context when capture is disabled', function () {
+    config(['model-scribe.capture_request_context' => false]);
+
+    Order::create(['status' => 'new', 'total' => 10]);
+
+    $log = ScribeLog::first();
+
+    expect($log)->not->toBeNull()
+        ->and(array_key_exists('url', $log->getAttributes()))->toBeTrue()
+        ->and($log->url)->toBeNull()
+        ->and($log->ip_address)->toBeNull()
+        ->and($log->user_agent)->toBeNull();
 });

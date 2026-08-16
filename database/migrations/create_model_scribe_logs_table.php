@@ -41,12 +41,11 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Optimised indices
+            // Optimised indices (subject/causer morph indexes are already
+            // created by nullableMorphs, so only index the remaining columns).
             $table->index('log_name');
             $table->index('event');
             $table->index('batch_uuid');
-            $table->index(['subject_type', 'subject_id']);
-            $table->index(['causer_type', 'causer_id']);
         });
     }
 

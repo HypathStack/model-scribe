@@ -2,8 +2,6 @@
 
 namespace HypathBel\ModelScribe;
 
-// TO DO cambiar a HypathStack\ModelScribe
-
 use HypathBel\ModelScribe\DTOs\LogEntry;
 use HypathBel\ModelScribe\Enums\ScribeEvent;
 use Illuminate\Database\Eloquent\Model;
@@ -30,7 +28,7 @@ class ModelScribe
         ?string $driver = null,
     ): void {
         if (is_string($event)) {
-            $event = ScribeEvent::from($event);
+            $event = ScribeEvent::tryFrom($event) ?? ScribeEvent::Custom;
         }
 
         $entry = new LogEntry(
